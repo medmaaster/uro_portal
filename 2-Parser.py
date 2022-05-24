@@ -4,7 +4,6 @@ import os
 from bs4 import BeautifulSoup
 
 
-
 def cleanString(string):
     #unicode(str(tmp), "utf-8")
     string = string.replace('\"', "")
@@ -35,7 +34,7 @@ directory = "1-Suche/"
 outputFile ="uro_portal.csv"
 
 if not os.path.isfile(outputFile):
-    header = u"Name;long;lat;Adresse;PLZ;Stadt;Telefon;Fax;Email;Website;Dateiname\n"
+    header = u"Name;Klinikum;Praxis;long;lat;Adresse;PLZ;Stadt;Telefon;Fax;Email;Website;Dateiname\n"
     f = open(outputFile,'w+')
     f.write(header)
     f.close()
@@ -43,6 +42,7 @@ else:
     pass
 f = open(outputFile,'a+')
 
+obj= []
 
 for filename in os.listdir(u""+directory):
     #if not  filename.startswith("agne"): continue
@@ -50,9 +50,11 @@ for filename in os.listdir(u""+directory):
     with open(directory + filename,'r+',encoding="utf-8") as f1:
         html = f1.read()
     soup = BeautifulSoup(html, "html.parser")
-
+    clinic_keywords = ["klinik", "Klinik", "krankenhaus", "Krankenhaus", "KKH","Institut","institut", "Center", "Zentrum", "Centrum","MVZ"]
     for div in soup.find_all("div", attrs ={"class":"gd-eintrag map-location"}):
         name = ""
+        praxis = ""
+        clinic = ""
         address = ""
         zipcode = ""
         town = ""
@@ -62,15 +64,64 @@ for filename in os.listdir(u""+directory):
         website = ""
         longitude = ""
         latitude = ""
+        geodata =div["data-jmapping"].split("point: {")[1].split(",")
+        lng = geodata[0].replace("lng:","").replace(" ", "")
+        lat = geodata[1].replace("lat:","").replace(" ", "").replace("}","")
 
         div1 = div.find("div", class_="gd-name")
         if div1:
-            print(cleanString(div1.strong.text))
+            for keyword in clinic_keywords:
+                if keyword in cleanString(div1.strong.text):
+                    name =""
+                    clinic = cleanString(div1.strong.text)
+                    break
+                else:
+                    name = cleanString(div1.strong.text)
+                if "Gemeinschaftspraxis mit:" in div1.text:
+                    praxis = cleanString(div1.text.split("\n")[-3]).replace("Gemeinschaftspraxis mit:","")
+                if "Krankenhaus:" in div1.text:   
+                    clinic =cleanString(div1.text.split("\n")[2]).replace("Krankenhaus:","")
+        div1 = div.find("div", class_="gd-adresse")
+
+        if lng+lat+name+clinic in obj:
+            continue
+        else:
+            obj.append(lng+lat+name+clinic)
+
+        if div1:
+            address = cleanString(div1.text.split("\n")[1])
+            span = div1.find("span", class_="jp-plz")
+            if span:
+                zipcode = cleanString(span.text)
+            town = cleanString(div1.text.split("\n")[-4]).replace(zipcode + " ", "")
+
+        span = div.find("span", "gd-telefon")
+        if span:
+            phone = cleanString(span.a["href"].replace("tel:", ""))
+            
+        span = div.find("span", "gd-telefax")
+        if span:
+            fax = cleanString(span.text.replace("Telefax:", ""))
+            #print(fax)  
+
+        a = div.find("a",class_="mail")
+        if a :
+            mail = a.text
+            #print(mail)    
+
+        a = div.find("a", class_="external-link")   
+        if a:
+            website = a["href"] 
+            #print(website)
 
 
 
         data = ""
         data += name
+        data += ";"
+        data += clinic
+        data += ";"
+        data += praxis
         data += ";"
         data += longitude
         data += ";"
